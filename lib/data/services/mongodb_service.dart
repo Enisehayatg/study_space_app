@@ -33,7 +33,7 @@ class MongoDBService {
     if (_db == null) return;
     try {
       final existingCollections = await _db!.getCollectionNames();
-      final requiredCollections = ['users', 'spaces', 'reservations', 'sessions', 'reviews', 'favorites'];
+      final requiredCollections = ['users', 'facilities', 'spaces', 'reservations', 'sessions', 'reviews', 'favorites'];
 
       for (var col in requiredCollections) {
         if (!existingCollections.contains(col)) {
@@ -56,6 +56,24 @@ class MongoDBService {
 
     final usersCol = _db!.collection('users');
     final spacesCol = _db!.collection('spaces');
+    final facilitiesCol = _db!.collection('facilities');
+
+    // MIGRATION PATCHES:
+    await facilitiesCol.update({'id': 'fac_elit_1'}, {'\$set': {'id': 'elit_etut_merkezi'}});
+    await spacesCol.update({'name': 'Sakin Kütüphane'}, {'\$set': {'name': 'Sessiz Bireysel Çalışma Alanı'}});
+    await spacesCol.update({'name': 'Odak Çalışma Çatı'}, {'\$set': {'name': 'Grup Çalışma & Proje Odası'}});
+    await spacesCol.update({'name': 'Gece Kuşu Etüt'}, {'\$set': {'name': '7/24 Kesintisiz Odak Salonu'}});
+    await spacesCol.update({'name': 'ELITE EĞİTİM KURUMLARI'}, {'\$set': {'name': 'Birebir Mentörlük & Etüt Odası'}});
+
+    // MIGRATION: Update old seed data so it is completely dynamic but shows Gaziantep
+    await facilitiesCol.update(
+      {'id': 'elit_etut_merkezi'}, 
+      {'\$set': {'location': 'Gaziantep Şehitkamil / İbrahimli', 'lat': 37.07687, 'lng': 37.31682}}
+    );
+    await facilitiesCol.update(
+      {'id': 'fac_other_2'}, 
+      {'\$set': {'location': 'Gaziantep Şahinbey / Üniversite Bulvarı', 'lat': 37.0285, 'lng': 37.3242}}
+    );
 
     // Eğer kullanıcı tablosu boşsa örnek veriler ekleyelim
     final userCount = await usersCol.count();
@@ -66,36 +84,74 @@ class MongoDBService {
       await insertUser(name: "Mekan Sahibi", email: "admin@space.com", role: "admin", totalStudyTime: 0);
     }
 
-    // Eğer mekan tablosu boşsa örnek etüt merkezleri ekleyelim
+    // Eğer tesisler tablosu boşsa örnek tesisler (Facilities) ekleyelim
+    final facilityCount = await facilitiesCol.count();
+    String defaultFacilityId = "elit_etut_merkezi";
+    if (facilityCount == 0) {
+      print('🌱 Örnek Tesisler ekleniyor...');
+      await insertFacility(
+        id: defaultFacilityId,
+        name: "Elit Eğitim Kurumları",
+        location: "Gaziantep Şehitkamil / İbrahimli",
+        imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=600",
+        adminId: "admin_123",
+        lat: 37.07687,
+        lng: 37.31682,
+      );
+      await insertFacility(
+        id: "fac_other_2",
+        name: "X Etüt Merkezi",
+        location: "Gaziantep Şahinbey / Üniversite Bulvarı",
+        imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=600",
+        adminId: "admin_456",
+        lat: 37.0285,
+        lng: 37.3242,
+      );
+    }
+
+    // Eğer mekan tablosu boşsa örnek etüt merkezleri (Odalar) ekleyelim
     final spaceCount = await spacesCol.count();
     if (spaceCount == 0) {
-      print('🌱 Örnek Etüt Merkezleri ekleniyor...');
+      print('🌱 Örnek Odalar ekleniyor...');
       await insertSpace(
-        name: "Sakin Kütüphane", 
+        name: "Sessiz Bireysel Çalışma Alanı", 
         location: "Kadıköy, İstanbul", 
         capacity: 50, 
         currentOccupancy: 12, 
         amenities: ["wifi", "plug", "silent_zone"], 
         imageUrl: "https://images.unsplash.com/photo-1549695627-88abeb7e93da?q=80&w=600",
         occupiedSeats: [0, 2, 4, 7, 9, 15, 22],
+        facilityId: defaultFacilityId,
       );
       await insertSpace(
-        name: "Odak Çalışma Çatı", 
+        name: "Grup Çalışma & Proje Odası", 
         location: "Beşiktaş, İstanbul", 
         capacity: 30, 
         currentOccupancy: 28, 
         amenities: ["wifi", "plug", "coffee", "meeting_room"], 
         imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=600",
         occupiedSeats: [1, 3, 5, 10, 11, 20],
+        facilityId: defaultFacilityId,
       );
       await insertSpace(
-        name: "Gece Kuşu Etüt", 
+        name: "7/24 Kesintisiz Odak Salonu", 
         location: "Çankaya, Ankara", 
         capacity: 100, 
         currentOccupancy: 5, 
         amenities: ["wifi", "plug", "24/7"], 
         imageUrl: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?q=80&w=600",
         occupiedSeats: [0, 1, 2, 8, 12, 14, 55, 60, 99],
+        facilityId: "fac_other_2",
+      );
+      await insertSpace(
+        name: "Birebir Mentörlük & Etüt Odası", 
+        location: "Gaziantep Şehitkamil / İbrahimli", 
+        capacity: 15, 
+        currentOccupancy: 2, 
+        amenities: ["wifi", "plug", "whiteboard", "teacher"], 
+        imageUrl: "https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=600",
+        occupiedSeats: [3, 7],
+        facilityId: defaultFacilityId,
       );
     }
 
@@ -137,8 +193,34 @@ class MongoDBService {
       'password': password ?? '123456', 
       'role': role,
       'total_study_time': totalStudyTime,
+      'hasFreeHourCoupon': false,
+      'claimed_study_hours': 0,
     };
     await _insertGeneric('users', data);
+  }
+
+  Future<Map<String, dynamic>?> getUser(String userId) async {
+    if (_db == null || !_db!.isConnected) return null;
+    return await _db!.collection('users').findOne({'id': userId});
+  }
+
+  Future<void> awardCoupon(String userId, int hoursToClaim) async {
+    if (_db == null || !_db!.isConnected) return;
+    await _db!.collection('users').update(
+      {'id': userId},
+      {
+        '\$set': {'hasFreeHourCoupon': true},
+        '\$inc': {'claimed_study_hours': hoursToClaim}
+      }
+    );
+  }
+
+  Future<void> useCoupon(String userId) async {
+    if (_db == null || !_db!.isConnected) return;
+    await _db!.collection('users').update(
+      {'id': userId},
+      {'\$set': {'hasFreeHourCoupon': false}}
+    );
   }
 
   Future<List<Map<String, dynamic>>> getUsers() => _getGeneric('users');
@@ -146,8 +228,35 @@ class MongoDBService {
   Future<void> deleteUser(String email) => _deleteGeneric('users', {'email': email});
 
   // ==========================================
-  // SPACES (Etüt Merkezleri)
-  // Schema: id, name, location, capacity, current_occupancy, amenities, image_url.
+  // FACILITIES (Tesisler / Etüt Merkezleri)
+  // Schema: id, name, location, image_url, admin_id
+  // ==========================================
+  Future<void> insertFacility({
+    required String id,
+    required String name,
+    required String location,
+    required String imageUrl,
+    required String adminId,
+    double? lat,
+    double? lng,
+  }) async {
+    final Map<String, dynamic> data = {
+      'id': id,
+      'name': name,
+      'location': location,
+      'image_url': imageUrl,
+      'admin_id': adminId,
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
+    };
+    await _insertGeneric('facilities', data);
+  }
+
+  Future<List<Map<String, dynamic>>> getFacilities() => _getGeneric('facilities');
+
+  // ==========================================
+  // SPACES (Odalar)
+  // Schema: id, name, location, capacity, current_occupancy, amenities, image_url, facility_id
   // ==========================================
   Future<void> insertSpace({
     required String name, 
@@ -157,7 +266,9 @@ class MongoDBService {
     required List<String> amenities, 
     required String imageUrl, 
     List<int> occupiedSeats = const [],
-    List<dynamic>? rooms
+    List<dynamic>? rooms,
+    int? hourlyPrice,
+    String? facilityId,
   }) async {
     
     final spaceRooms = rooms ?? [
@@ -191,11 +302,24 @@ class MongoDBService {
       'image_url': imageUrl,
       'occupied_seats': occupiedSeats,
       'rooms': spaceRooms,
+      'facility_id': facilityId ?? "elit_etut_merkezi", // Admin paneli uyumluluğu için varsayılan
+      if (hourlyPrice != null) 'hourly_price': hourlyPrice,
     };
     await _insertGeneric('spaces', data);
   }
 
   Future<List<Map<String, dynamic>>> getSpaces() => _getGeneric('spaces');
+  
+  Future<List<Map<String, dynamic>>> getSpacesByFacilityId(String facilityId) async {
+    if (_db == null || !_db!.isConnected) return [];
+    final allSpaces = await _db!.collection('spaces').find().toList();
+    return allSpaces.where((space) {
+      final String? fId = space['facility_id'];
+      // Eski odaların facility_id'si yoksa VEYA fac_elit_1 ise, bunları elit_etut_merkezi'ne bağla
+      if (facilityId == "elit_etut_merkezi" && (fId == null || fId == "fac_elit_1")) return true;
+      return fId == facilityId;
+    }).toList();
+  }
   Future<void> updateSpace(String id, Map<String, dynamic> modifier) => _updateGeneric('spaces', {'id': id}, modifier);
   Future<void> deleteSpace(String id) => _deleteGeneric('spaces', {'id': id});
 
@@ -261,17 +385,71 @@ class MongoDBService {
   // RESERVATIONS (Rezervasyonlar)
   // Schema: id, user_id, space_id, start_time, end_time, status.
   // ==========================================
-  Future<void> insertReservation({required String userId, required String spaceId, String? roomId, required DateTime startTime, required DateTime endTime, required String status}) async {
+  Future<void> insertReservation({required String userId, String? userName, required String spaceId, String? roomId, required DateTime startTime, required DateTime endTime, required String status, List<int>? seats}) async {
     final Map<String, dynamic> data = {
       'id': ObjectId().toHexString(),
       'user_id': userId,
+      if (userName != null) 'user_name': userName,
       'space_id': spaceId,
       if (roomId != null) 'room_id': roomId,
       'start_time': startTime.toIso8601String(),
       'end_time': endTime.toIso8601String(),
       'status': status,
+      if (seats != null) 'seats': seats,
     };
     await _insertGeneric('reservations', data);
+  }
+
+  Future<Map<String, dynamic>?> getActiveReservationForSeat(String spaceId, int seatIndex) async {
+    if (_db == null || !_db!.isConnected) return null;
+    final reservations = await _db!.collection('reservations').find({'space_id': spaceId, 'status': 'active'}).toList();
+    
+    Map<String, dynamic>? targetRes;
+    
+    // Önce bu koltuğu içeren rezervasyonu arayalım
+    for (var res in reservations) {
+      if (res['seats'] != null && (res['seats'] as List).contains(seatIndex)) {
+        targetRes = res;
+        break;
+      }
+    }
+    
+    // Eğer bulamazsak, eski data (seats dizisi olmayan) olabilir. İlk bulduğumuz aktif rezervasyonu döndürelim (fallback).
+    if (targetRes == null && reservations.isNotEmpty) {
+      targetRes = reservations.first;
+    }
+    
+    if (targetRes != null) {
+       final user = await _db!.collection('users').findOne({'id': targetRes['user_id']});
+       return {
+          'reservation': targetRes,
+          'user': user,
+       };
+    }
+
+    return null;
+  }
+
+  Future<void> checkoutSeat(String spaceId, int seatIndex, String reservationId) async {
+    if (_db == null || !_db!.isConnected) return;
+    
+    // 1. Remove seat from space occupied_seats
+    final space = await _db!.collection('spaces').findOne({'id': spaceId});
+    if (space != null) {
+      List<int> currentOccupied = [];
+      if (space['occupied_seats'] != null) {
+        for (var seat in space['occupied_seats']) {
+          currentOccupied.add(seat as int);
+        }
+      }
+      currentOccupied.remove(seatIndex);
+      await updateSpace(spaceId, {'\$set': {'occupied_seats': currentOccupied}});
+    }
+
+    // 2. Mark reservation as completed (only if we have a real reservation id)
+    if (reservationId != 'mock_res_id') {
+      await updateReservation(reservationId, {'\$set': {'status': 'completed'}});
+    }
   }
   
   Future<List<Map<String, dynamic>>> getReservations() => _getGeneric('reservations');
@@ -304,7 +482,10 @@ class MongoDBService {
       final dur = dtEnd.difference(pTime).inHours;
 
       result.add({
+        ...res,
         "name": userName,
+        "user_name": userName,
+        "space_name": spaceName,
         "detail": "$spaceName ($dur Saat)",
         "time": "${pTime.day}/${pTime.month} ${pTime.hour.toString().padLeft(2, '0')}:${pTime.minute.toString().padLeft(2, '0')}",
         "raw_time": pTime,

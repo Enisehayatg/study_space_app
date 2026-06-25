@@ -103,6 +103,10 @@ class _StudentAuthScreenState extends State<StudentAuthScreen> with SingleTicker
           await prefs.remove('student_password');
         }
 
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_role', 'student');
+        await prefs.setString('auth_user_id', user['id']);
+
         GlobalState().loginUser(user);
         _showSnackBar("Giriş Başarılı! Hoş geldin, ${user['name']}");
         if (mounted) {

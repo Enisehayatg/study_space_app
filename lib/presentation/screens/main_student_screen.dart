@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'space_list_screen.dart';
 import 'profile_screen.dart';
+import 'map_screen.dart';
 
 class MainStudentScreen extends StatefulWidget {
   const MainStudentScreen({super.key});
@@ -14,41 +15,7 @@ class _MainStudentScreenState extends State<MainStudentScreen> {
 
   final List<Widget> _pages = [
     const SpaceListScreen(),
-    Container(
-      color: Colors.blue.shade50,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Container(
-            padding: const EdgeInsets.all(30),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10)),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.map_rounded, size: 80, color: Colors.blue.shade300),
-                const SizedBox(height: 20),
-                const Text(
-                  "Elit Eğitim Kurumları",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF334E68)),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  "Harita entegrasyonu çok yakında aktif olacak.\nŞimdilik konum: Elazığ Merkez",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
+    const MapScreen(),
     const ProfileScreen(),
   ];
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/services/mongodb_service.dart';
 import '../../core/global_state.dart';
+import 'facility_detail_screen.dart';
 import 'space_detail_screen.dart';
 import '../../core/animations.dart';
 
@@ -15,7 +16,7 @@ class SpaceListScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text("Çalışma Alanları", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+        title: Text("Etüt Merkezleri", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
       ),
@@ -57,7 +58,7 @@ class SpaceListScreen extends StatelessWidget {
           ),
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: MongoDBService().getSpaces(),
+              future: MongoDBService().getFacilities(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -65,25 +66,21 @@ class SpaceListScreen extends StatelessWidget {
                 if (snapshot.hasError) {
                   return Center(child: Text("Hata: ${snapshot.error}", style: TextStyle(color: isDark ? Colors.white : Colors.black)));
                 }
-                final spaces = snapshot.data ?? [];
-                if (spaces.isEmpty) {
-                  return Center(child: Text("Henüz bir mekan bulunmuyor.", style: TextStyle(color: isDark ? Colors.white : Colors.black)));
+                final facilities = snapshot.data ?? [];
+                if (facilities.isEmpty) {
+                  return Center(child: Text("Henüz bir etüt merkezi bulunmuyor.", style: TextStyle(color: isDark ? Colors.white : Colors.black)));
                 }
 
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: spaces.length,
+                  itemCount: facilities.length,
                   itemBuilder: (context, index) {
-                    final space = spaces[index];
-                    return _buildSpaceCard(
+                    final facility = facilities[index];
+                    return _buildFacilityCard(
                       context,
-                      id: space['id'],
-                      name: space['name'],
-                      location: space['location'],
-                      price: "75 TL", // Şimdilik statik bir fiyat kurgusu
-                      roomData: space['rooms'] ?? [],
-                      capacity: space['capacity'] ?? 10,
-                      occupiedSeats: (space['occupied_seats'] as List<dynamic>?)?.map((e) => e as int).toList() ?? [],
+                      id: facility['id'],
+                      name: facility['name'],
+                      location: facility['location'],
                       isDark: isDark,
                     );
                   },
@@ -96,15 +93,11 @@ class SpaceListScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSpaceCard(
+  Widget _buildFacilityCard(
     BuildContext context, {
     required String id,
     required String name,
     required String location,
-    required String price,
-    required List<dynamic> roomData,
-    required int capacity,
-    required List<int> occupiedSeats,
     required bool isDark,
   }) {
     return Container(
@@ -125,12 +118,9 @@ class SpaceListScreen extends StatelessWidget {
           Navigator.push(
             context,
             BouncePageRoute(
-              page: SpaceDetailScreen(
-                name: name,
-                spaceId: id,
-                roomData: roomData,
-                capacity: capacity,
-                occupiedSeats: occupiedSeats,
+              page: FacilityDetailScreen(
+                facilityId: id,
+                facilityName: name,
               ),
             ),
           );
@@ -142,11 +132,11 @@ class SpaceListScreen extends StatelessWidget {
             color: isDark ? Colors.blueAccent.withOpacity(0.2) : Colors.blue.shade50,
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.school, color: Colors.blueAccent),
+          child: const Icon(Icons.business, color: Colors.blueAccent),
         ),
         title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
         subtitle: Text(location, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-        trailing: Text(price, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.blueAccent),
       ),
     );
   }

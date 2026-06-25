@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/global_state.dart';
 import '../../data/services/mongodb_service.dart';
 import '../../core/animations.dart';
@@ -26,24 +27,31 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
   int selectedDuration = 1;
   bool _isReviewsExpanded = false;
   bool _isSubmitting = false;
-  int _selectedRoomIndex = 0;
+  bool _hasCoupon = false;
+  bool _useCoupon = false;
 
   @override
   void initState() {
     super.initState();
     _updateOccupiedSeatsFromRoom();
     globalState.addListener(_onStateChanged);
+    _checkCoupon();
+  }
+
+  void _checkCoupon() async {
+    final user = globalState.currentUser;
+    if (user != null) {
+      final userMap = await MongoDBService().getUser(user['id']);
+      if (mounted && userMap != null) {
+        setState(() {
+          _hasCoupon = userMap['hasFreeHourCoupon'] ?? false;
+        });
+      }
+    }
   }
 
   void _updateOccupiedSeatsFromRoom() {
-    if (widget.roomData != null && widget.roomData!.isNotEmpty) {
-      if (_selectedRoomIndex < widget.roomData!.length) {
-        final r = widget.roomData![_selectedRoomIndex];
-        _currentOccupiedSeats = (r['occupied_seats'] as List<dynamic>?)?.map((e) => e as int).toList() ?? [];
-      }
-    } else {
-      _currentOccupiedSeats = List.from(widget.occupiedSeats);
-    }
+    _currentOccupiedSeats = List.from(widget.occupiedSeats);
   }
 
   @override
@@ -85,51 +93,7 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
     }
   }
 
-  Widget _buildRoomSelector(bool isDark, Color textColor) {
-    if (widget.roomData == null || widget.roomData!.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Oda Seçimi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: textColor)),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(widget.roomData!.length, (index) {
-              final roomName = widget.roomData![index]['name'] ?? "Oda";
-              final bool isSelected = _selectedRoomIndex == index;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedRoomIndex = index;
-                    selectedSeats.clear();
-                    _updateOccupiedSeatsFromRoom();
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.blueAccent : (isDark ? Colors.white12 : Colors.grey.shade200),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    roomName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, 
-                      color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(height: 25),
-      ],
-    );
-  }
+
 
   Widget _buildFeatureChip(IconData icon, String label, bool isDark) {
     return Container(
@@ -375,8 +339,6 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
                     ),
                     const SizedBox(height: 25),
                     
-                    _buildRoomSelector(isDark, textColor),
-                    
                     // Değerlendirme ve Yorumlar Card
                     ClipRRect(
                       borderRadius: BorderRadius.circular(20),
@@ -596,11 +558,10 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
                     const SizedBox(height: 30),
                     
                     InteractiveSeatingGrid(
+                      spaceId: widget.spaceId ?? '',
                       selectedSeats: selectedSeats,
                       onSeatSelected: _onSeatSelected,
-                      capacity: (widget.roomData != null && widget.roomData!.isNotEmpty) 
-                          ? (widget.roomData![_selectedRoomIndex]['capacity'] ?? widget.capacity) 
-                          : widget.capacity,
+                      capacity: widget.capacity,
                       occupiedSeats: _currentOccupiedSeats,
                     ),
                   ],
@@ -642,6 +603,21 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (_hasCoupon)
+                                Theme(
+                                  data: ThemeData(unselectedWidgetColor: isDark ? Colors.blueAccent.shade100 : Colors.blue.shade900),
+                                  child: CheckboxListTile(
+                                    title: Text("🎁 1 Saat Ücretsiz Çalışma", style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13, fontWeight: FontWeight.bold)),
+                                    value: _useCoupon,
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                    activeColor: Colors.blueAccent,
+                                    onChanged: (val) {
+                                      setState(() { _useCoupon = val ?? false; });
+                                    },
+                                  ),
+                                ),
                               const SizedBox(height: 8),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -651,7 +627,12 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
                                     style: TextStyle(color: isDark ? Colors.blue.shade200 : Colors.blue.shade800, fontSize: 12),
                                   ),
                                   Text(
-                                    "${(selectedSeats.length * selectedDuration * 75).toStringAsFixed(1)} TL",
+                                    "${() {
+                                      double total = selectedSeats.length * selectedDuration * 75.0;
+                                      if (_useCoupon) total -= 75.0;
+                                      if (total < 0) total = 0;
+                                      return total.toStringAsFixed(1);
+                                    }()} TL",
                                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? Colors.blueAccent.shade100 : Colors.blue.shade900),
                                   ),
                                 ],
@@ -677,9 +658,7 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
 
                                try {
                                  // Seçilen odanın ID'sini de db ye gönderiyoruz (bookSeatsInSpace)
-                                 String targetRoomId = (widget.roomData != null && widget.roomData!.isNotEmpty)
-                                     ? widget.roomData![_selectedRoomIndex]['id']
-                                     : 'room_main';
+                                 String targetRoomId = 'room_main';
                                      
                                  await MongoDBService().bookSeatsInSpace(widget.spaceId!, targetRoomId, List.from(selectedSeats));
                                  
@@ -690,12 +669,21 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
                                  
                                  await MongoDBService().insertReservation(
                                    userId: user['id'], 
+                                   userName: user['name'],
                                    spaceId: widget.spaceId!,
                                    roomId: targetRoomId,
                                    startTime: startDt, 
                                    endTime: endDt, 
-                                   status: "active"
+                                   status: "active",
+                                   seats: List.from(selectedSeats)
                                  );
+
+                                 if (_useCoupon) {
+                                   await MongoDBService().useCoupon(user['id']);
+                                   if (globalState.currentUser != null) {
+                                     globalState.currentUser!['hasFreeHourCoupon'] = false;
+                                   }
+                                 }
 
                                  if (context.mounted) {
                                    setState(() {
@@ -745,6 +733,7 @@ class _SpaceDetailScreenState extends State<SpaceDetailScreen> {
 }
 
 class InteractiveSeatingGrid extends StatelessWidget {
+  final String spaceId;
   final List<int> selectedSeats;
   final Function(int) onSeatSelected;
   final int capacity;
@@ -752,6 +741,7 @@ class InteractiveSeatingGrid extends StatelessWidget {
 
   const InteractiveSeatingGrid({
     super.key,
+    required this.spaceId,
     required this.selectedSeats,
     required this.onSeatSelected,
     required this.capacity,
@@ -791,29 +781,34 @@ class InteractiveSeatingGrid extends StatelessWidget {
             String? friendName;
 
             Color seatColor;
-            Color shadowColor;
+            Color borderColor;
+            Color contentColor;
             IconData seatIcon;
 
-            // Zengin, modern ve göz yormayan (Apple / Material 3) renkler
             if (isCleaning) {
-              seatColor = const Color(0xFF8E8E93);
-              shadowColor = Colors.transparent;
+              seatColor = Colors.grey.shade100;
+              borderColor = Colors.grey.shade400;
+              contentColor = Colors.grey.shade700;
               seatIcon = Icons.cleaning_services;
             } else if (isSelected) {
-              seatColor = const Color(0xFF007AFF); // iOS Blue
-              shadowColor = const Color(0xFF007AFF).withOpacity(0.4);
+              seatColor = Colors.blue.shade100;
+              borderColor = Colors.blue.shade500;
+              contentColor = Colors.blue.shade700;
               seatIcon = Icons.check;
             } else if (isFriend) {
-              seatColor = const Color(0xFFAF52DE); // iOS Purple
-              shadowColor = const Color(0xFFAF52DE).withOpacity(0.4);
+              seatColor = Colors.purple.shade50;
+              borderColor = Colors.purple.shade300;
+              contentColor = Colors.purple.shade700;
               seatIcon = Icons.face_retouching_natural;
             } else if (isOccupied) {
-              seatColor = const Color(0xFFFF3B30); // iOS Red
-              shadowColor = const Color(0xFFFF3B30).withOpacity(0.3);
+              seatColor = Colors.red.shade50;
+              borderColor = Colors.red.shade700;
+              contentColor = Colors.red.shade700;
               seatIcon = Icons.person;
             } else {
-              seatColor = const Color(0xFF34C759); // iOS Green
-              shadowColor = const Color(0xFF34C759).withOpacity(0.3);
+              seatColor = Colors.green.shade50;
+              borderColor = Colors.green.shade300;
+              contentColor = Colors.green.shade700;
               seatIcon = Icons.event_seat;
             }
 
@@ -821,8 +816,23 @@ class InteractiveSeatingGrid extends StatelessWidget {
               message: isFriend ? "Bir Arkadaşın Burada: $friendName" : (isOccupied ? "Dolu Masa" : "Müsait Masa"),
               child: BouncingWidget(
                 onTap: (isOccupied || isCleaning)
-                    ? () {
-                        if (isFriend) {
+                    ? () async {
+                        if (isOccupied) {
+                          final currentUser = globalState.currentUser;
+                          if (currentUser != null) {
+                            final resData = await MongoDBService().getActiveReservationForSeat(spaceId, index);
+                            if (resData != null) {
+                              final reservation = resData['reservation'];
+                              if (reservation['user_id'] == currentUser['id']) {
+                                if (context.mounted) {
+                                  _showMySeatDetails(context, index, reservation);
+                                }
+                                return;
+                              }
+                            }
+                          }
+                        }
+                        if (isFriend && context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text("Can Dostun $friendName burada çalışıyor! 🙋"), duration: const Duration(seconds: 2), behavior: SnackBarBehavior.floating),
                           );
@@ -832,31 +842,23 @@ class InteractiveSeatingGrid extends StatelessWidget {
                         onSeatSelected(index);
                       },
                 child: Container(
-                  margin: const EdgeInsets.all(6), // Masaların devasa olmasını engeller (Diğer tarafla 1:1 boyut)
+                  margin: const EdgeInsets.all(6),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     decoration: BoxDecoration(
                       color: seatColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: shadowColor,
-                          blurRadius: isSelected || isFriend || isOccupied ? 8 : 0,
-                          spreadRadius: isSelected || isFriend || isOccupied ? 1 : 0,
-                          offset: const Offset(0, 3), // Modern tasarım gölgesi
-                        )
-                      ],
-                      border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.5),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor, width: 1.5),
                     ),
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(seatIcon, color: Colors.white, size: 18),
+                          Icon(seatIcon, color: contentColor, size: 18),
                           const SizedBox(height: 2),
                           Text(
                             "${index + 1}",
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12),
+                            style: TextStyle(fontWeight: FontWeight.bold, color: contentColor, fontSize: 12),
                           ),
                         ],
                       ),
@@ -868,6 +870,88 @@ class InteractiveSeatingGrid extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+
+  void _showMySeatDetails(BuildContext context, int seatIndex, Map<String, dynamic> reservation) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final startTime = DateTime.tryParse(reservation['start_time'] ?? '') ?? DateTime.now();
+    final endTime = DateTime.tryParse(reservation['end_time'] ?? '') ?? DateTime.now().add(const Duration(hours: 1));
+    final remainingMins = endTime.difference(DateTime.now()).inMinutes;
+    final isExpired = remainingMins <= 0;
+    final qrData = reservation['id'] ?? 'invalid_qr';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2630) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text("Masa ${seatIndex + 1} Sizin", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: isDark ? Colors.white : Colors.black87)),
+                const SizedBox(height: 10),
+                Text(
+                  "Giriş: ${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}",
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isExpired ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isExpired ? "Süreniz Doldu" : "Kalan Süre: ${(remainingMins / 60).floor()} saat ${remainingMins % 60} dk",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      color: isExpired ? Colors.red : Colors.blueAccent,
+                      fontSize: 16
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                    ],
+                  ),
+                  child: QrImageView(
+                    data: qrData,
+                    version: QrVersions.auto,
+                    size: 180.0,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text("Bu QR kodu turnikeden veya masa sensöründen okutarak check-in yapabilirsiniz.", textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: isDark ? Colors.white70 : Colors.black54)),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

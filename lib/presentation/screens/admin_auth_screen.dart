@@ -110,6 +110,10 @@ class _AdminAuthScreenState extends State<AdminAuthScreen> with SingleTickerProv
           await prefs.remove('admin_password');
         }
 
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_role', 'admin');
+        await prefs.setString('auth_user_id', user['id']);
+
         GlobalState().loginUser(user);
         _showSnackBar("Giriş Başarılı! Hoş geldin Yönetici: ${user['name']}");
         if (mounted) {

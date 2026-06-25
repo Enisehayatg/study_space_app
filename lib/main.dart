@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'presentation/screens/login_selection_screen.dart';
+import 'presentation/screens/main_student_screen.dart';
+import 'presentation/screens/admin_dashboard_screen.dart';
 import 'core/global_state.dart';
 import 'data/services/mongodb_service.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final mongoService = MongoDBService();
-  await mongoService.connect();
-  await mongoService.seedData(); // Tabloları test verileriyle doldurur
   runApp(const StudySpaceApp());
 }
 
@@ -63,7 +63,91 @@ class _StudySpaceAppState extends State<StudySpaceApp> {
         ),
         useMaterial3: true,
       ),
-      home: const LoginSelectionScreen(),
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  String _statusMessage = "Sunucuya bağlanıyor...";
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    try {
+      final mongoService = MongoDBService();
+      await mongoService.connect().timeout(const Duration(seconds: 15));
+      await mongoService.seedData();
+
+      final prefs = await SharedPreferences.getInstance();
+      final role = prefs.getString('auth_role');
+      final userId = prefs.getString('auth_user_id');
+
+      if (role != null && userId != null) {
+        final db = MongoDBService().db;
+        if (db != null && db.isConnected) {
+          final user = await db.collection('users').findOne({'id': userId});
+          if (user != null) {
+            GlobalState().loginUser(user);
+            if (mounted) {
+              if (role == 'admin') {
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+              } else {
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainStudentScreen()));
+              }
+              return;
+            }
+          }
+        }
+      }
+      
+      if (mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginSelectionScreen()));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _statusMessage = "Veritabanı Bağlantı Hatası!\nLütfen MongoDB IP izinlerinizi (Network Access) kontrol edin veya internet bağlantınızı doğrulayın.\n\nHata: $e";
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(30.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (!_statusMessage.contains('Hata')) const CircularProgressIndicator(),
+              if (_statusMessage.contains('Hata')) const Icon(Icons.error_outline, color: Colors.red, size: 50),
+              const SizedBox(height: 20),
+              Text(
+                _statusMessage, 
+                textAlign: TextAlign.center, 
+                style: TextStyle(
+                  fontSize: 16, 
+                  color: _statusMessage.contains('Hata') ? Colors.red : Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
